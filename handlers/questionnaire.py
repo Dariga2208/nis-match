@@ -5,10 +5,12 @@ from aiogram.fsm.state import StatesGroup, State
 
 from keyboards.buttons import (
     fill_form_button, after_fill_keyboard,
-    skip_button, edit_options_keyboard
+    skip_button, edit_options_keyboard, reaction_keyboard, view_profiles_button
 )
 from utils.profile import show_profile
 from database import user_data
+from aiogram.types import CallbackQuery
+from aiogram.utils.markdown import hlink
 
 router = Router()
 
@@ -26,6 +28,9 @@ class EditForm(StatesGroup):
     grade = State()
     photo = State()
     about = State()
+
+# Отслеживаем текущую позицию пользователя при просмотре анкет
+viewing_progress = {}
 
 @router.message(F.text == "/start")
 async def start_handler(message: Message, state: FSMContext):
@@ -79,8 +84,16 @@ async def finish(message: Message, state: FSMContext):
     await finish_form(message, state)
 
 async def finish_form(message: Message, state: FSMContext):
+    user_id = message.from_user.id
     data = await state.get_data()
-    user_data[message.from_user.id] = data
+    user_data[user_id] = {
+        "user_id": user_id,  # 👈 обязательно добавляем!
+        "name": data["name"],
+        "age": data["age"],
+        "grade": data["grade"],
+        "photo": data["photo"],
+        "about": data.get("about", ""),
+    }
     await show_profile(message, data)
     await message.answer("Анкета сохранена!", reply_markup=after_fill_keyboard)
     await state.clear()
@@ -159,13 +172,7 @@ async def save_new_about(message: Message, state: FSMContext):
     await message.answer("Описание обновлено!", reply_markup=after_fill_keyboard)
     await state.clear()
 
-from keyboards.buttons import reaction_keyboard, view_profiles_button
-from aiogram.types import CallbackQuery
-from aiogram.utils.markdown import hlink
-
-# Отслеживаем текущую позицию пользователя при просмотре анкет
-viewing_progress = {}
-
+# Отслеживаем просмотр анкет
 @router.message(F.text == "👀 Смотреть анкеты")
 async def view_profiles(message: Message):
     user_id = message.from_user.id
@@ -186,8 +193,12 @@ async def show_next_candidate(message: Message, viewer_id: int):
         return
 
     candidate_id = progress["candidates"][progress["index"]]
-    profile = user_data[candidate_id]
-    
+    profile = user_data.get(candidate_id)
+
+    if not profile or 'photo' not in profile:
+        await message.answer("У этого пользователя нет фото.")
+        return
+
     caption = f"{profile['name']}, {profile['age']}, {profile['grade']} класс\n\n{profile['about']}"
     await message.answer_photo(photo=profile['photo'], caption=caption, reply_markup=reaction_keyboard)
 
