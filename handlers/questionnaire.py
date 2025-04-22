@@ -91,7 +91,7 @@ async def finish_form(message: Message, state: FSMContext):
         "name": data["name"],
         "age": data["age"],
         "grade": data["grade"],
-        "photo": data["photo"],
+        "photo": data["photo"] if data.get("photo") else None,  # Обрабатываем отсутствие фото
         "about": data.get("about", ""),
     }
     await show_profile(message, data)
@@ -195,7 +195,7 @@ async def show_next_candidate(message: Message, viewer_id: int):
     candidate_id = progress["candidates"][progress["index"]]
     profile = user_data.get(candidate_id)
 
-    if not profile or 'photo' not in profile:
+    if not profile or not profile.get('photo'):
         await message.answer("У этого пользователя нет фото.")
         return
 
